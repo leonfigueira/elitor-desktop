@@ -18,10 +18,11 @@
   <div class="row"><div><div class="label">Keep running in the background</div><div class="hint">Closing the window keeps it in the menu bar — instant reopen + notifications keep arriving.</div></div><input type="checkbox" id="runInBackground"></div>
   <div class="row"><div><div class="label">Dock unread badge</div><div class="hint">Show the unread count on the dock icon.</div></div><input type="checkbox" id="dockBadge"></div>
   <div class="row"><div><div class="label">Bounce dock on new activity</div><div class="hint">Bounce the dock icon when unread count rises.</div></div><input type="checkbox" id="bounce"></div>
+  <div class="row"><div><div class="label">Show timer in menu bar</div><div class="hint">Display today\u2019s tracked total next to the menu-bar icon.</div></div><input type="checkbox" id="showTrayTimer"></div>
   <div class="row"><div><div class="label">Updates</div><div class="hint">Check for a newer version of the app.</div></div><button class="btn" id="check">Check now</button></div>
   <div class="ver" id="ver"></div>
   <script>
-    const ids=["launchAtLogin","runInBackground","dockBadge","bounce"];
+    const ids=["launchAtLogin","runInBackground","dockBadge","bounce","showTrayTimer"];
     async function init(){const s=await window.prefs.get();ids.forEach(k=>{document.getElementById(k).checked=!!s[k];});document.getElementById("ver").textContent="Version "+(await window.prefs.version());}
     ids.forEach(k=>document.getElementById(k).addEventListener("change",e=>window.prefs.set({[k]:e.target.checked})));
     document.getElementById("check").addEventListener("click",()=>window.prefs.checkUpdates());

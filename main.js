@@ -17,7 +17,7 @@ app.userAgentFallback =
 
 /* ---------- settings (local to this Mac, JSON in userData) ---------- */
 const SETTINGS_PATH = path.join(app.getPath("userData"), "settings.json");
-const DEFAULTS = { launchAtLogin: false, runInBackground: true, dockBadge: true, bounce: true };
+const DEFAULTS = { launchAtLogin: false, runInBackground: true, dockBadge: true, bounce: true, showTrayTimer: true };
 function loadSettings() { try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8")) }; } catch (e) { return { ...DEFAULTS }; } }
 function saveSettings() { try { fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2)); } catch (e) {} }
 let settings = DEFAULTS;
@@ -174,7 +174,7 @@ ipcMain.on("tray:timer", (_e, state) => {
   };
   timerState = next;
   if (!tray) return;
-  const title = next.label ? " " + next.label : "";
+  const title = (settings.showTrayTimer !== false && next.label) ? " " + next.label : "";
   if (title !== lastTrayTitle) { try { tray.setTitle(title); } catch (e) {} lastTrayTitle = title; }
   const sig = trayMenuSignature(next);
   if (sig !== lastMenuSig) { lastMenuSig = sig; updateTrayMenu(); }
@@ -189,7 +189,17 @@ function openPrefs() {
   prefsWin.on("closed", () => { prefsWin = null; });
 }
 ipcMain.handle("prefs:get", () => settings);
-ipcMain.handle("prefs:set", (_e, patch) => { settings = { ...settings, ...patch }; saveSettings(); applySettings(); return settings; });
+ipcMain.handle("prefs:set", (_e, patch) => {
+  settings = { ...settings, ...patch }; saveSettings(); applySettings();
+  // Apply the menu-bar timer visibility immediately (don\u2019t wait for the
+  // next push, which only happens on a store change / tick).
+  if (tray) {
+    const title = (settings.showTrayTimer !== false && timerState.label) ? " " + timerState.label : "";
+    try { tray.setTitle(title); } catch (e) {}
+    lastTrayTitle = title;
+  }
+  return settings;
+});
 ipcMain.handle("prefs:version", () => app.getVersion());
 ipcMain.handle("prefs:check-updates", () => checkForUpdates(false));
 
