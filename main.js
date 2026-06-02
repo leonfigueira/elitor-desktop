@@ -119,26 +119,39 @@ function trayCommand(payload) {
 function updateTrayMenu() {
   if (!tray) return;
   const items = [];
+  // Each project opens a submenu to pick the bucket, then starts/switches.
+  // NOTE: "&&" renders as a literal "&" (a single "&" is eaten as a mnemonic).
   const catSub = (pr) => [
     { label: "Production", click: () => trayCommand({ action: "start", projectId: pr.id, category: "production" }) },
-    { label: "Meetings & training", click: () => trayCommand({ action: "start", projectId: pr.id, category: "meeting" }) },
+    { label: "Meetings && training", click: () => trayCommand({ action: "start", projectId: pr.id, category: "meeting" }) },
   ];
-  if (timerState.running) {
-    items.push({ label: "● " + (timerState.projectName || "Tracking") + (timerState.categoryLabel ? "  ·  " + timerState.categoryLabel : ""), enabled: false });
-    items.push({ label: "Stop & log", click: () => trayCommand({ action: "stop" }) });
-  } else {
-    items.push({ label: "Today: " + (timerState.label || "00:00:00"), enabled: false });
-  }
-  items.push({ type: "separator" });
   const projects = Array.isArray(timerState.projects) ? timerState.projects : [];
   const recent = Array.isArray(timerState.recent) ? timerState.recent : [];
-  if (recent.length > 0) {
-    items.push({ label: timerState.running ? "Switch to" : "Recent", enabled: false });
-    for (const pr of recent) items.push({ label: pr.name, submenu: catSub(pr) });
-    items.push({ type: "separator" });
+  if (timerState.running) {
+    items.push({ label: "● " + (timerState.projectName || "Tracking") + (timerState.categoryLabel ? "  ·  " + timerState.categoryLabel : ""), enabled: false });
+    items.push({ label: "Stop && log", click: () => trayCommand({ action: "stop" }) });
+  } else {
+    items.push({ label: "Today: " + (timerState.label || "00:00:00"), enabled: false });
+    // One-click resume of the last tracked project + its last bucket.
+    if (recent.length > 0) {
+      items.push({ label: "▶  Start " + recent[0].name, click: () => trayCommand({ action: "start-last" }) });
+    }
   }
+  items.push({ type: "separator" });
+  // Up to 5 projects as a FLAT list in the main view (most-recent first, then
+  // filled from the rest). Anything beyond 5 drops into a "More projects"
+  // submenu. Each opens its Production / Meetings & training submenu.
   if (projects.length > 0) {
-    items.push({ label: "Projects / Work orders", submenu: projects.map((pr) => ({ label: pr.name, submenu: catSub(pr) })) });
+    const recentIds = new Set(recent.map((p) => p.id));
+    const rest = projects.filter((p) => !recentIds.has(p.id));
+    const mainList = [...recent, ...rest].slice(0, 5);
+    const mainIds = new Set(mainList.map((p) => p.id));
+    const overflow = projects.filter((p) => !mainIds.has(p.id));
+    items.push({ label: timerState.running ? "Switch to" : "Projects", enabled: false });
+    for (const pr of mainList) items.push({ label: pr.name, submenu: catSub(pr) });
+    if (overflow.length > 0) {
+      items.push({ label: "More projects", submenu: overflow.map((pr) => ({ label: pr.name, submenu: catSub(pr) })) });
+    }
   } else {
     items.push({ label: "No projects assigned", enabled: false });
   }
