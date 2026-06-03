@@ -1,31 +1,107 @@
 <!doctype html><html><head><meta charset="utf-8"><style>
   :root{color-scheme:dark}
-  body{margin:0;font:13px -apple-system,system-ui,sans-serif;background:#0b0c14;color:#e7e9ee;padding:18px 20px}
-  h1{font-size:15px;font-weight:600;margin:0 0 14px}
-  .row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}
-  .row:last-of-type{border-bottom:0}
-  .label{font-weight:500}.hint{font-size:11px;color:#9aa0ad;margin-top:2px;max-width:260px}
-  input[type=checkbox]{width:34px;height:20px;appearance:none;background:rgba(255,255,255,.15);border-radius:20px;position:relative;cursor:pointer;transition:.15s}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;display:flex;font:13px -apple-system,system-ui,sans-serif;background:#0b0c14;color:#e7e9ee}
+  .sidebar{width:190px;flex:0 0 190px;background:#0e0f1a;border-right:1px solid rgba(255,255,255,.06);padding:14px 10px;overflow-y:auto}
+  .nav{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;background:transparent;color:#cdd1da;border-radius:8px;cursor:pointer;font-size:13px;text-align:left;margin-bottom:2px}
+  .nav:hover{background:rgba(255,255,255,.05)}
+  .nav.active{background:#7c5cff;color:#fff}
+  .ic{width:22px;height:22px;flex:0 0 22px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff}
+  .ic svg{width:14px;height:14px}
+  .ic.gen{background:#6b7280}.ic.notif{background:#ef4444}.ic.bar{background:#3b82f6}.ic.about{background:#8b8f9a}
+  .content{flex:1;overflow-y:auto;padding:22px 26px}
+  .pane{display:none}.pane.show{display:block}
+  h1{font-size:18px;font-weight:600;margin:0 0 16px}
+  .card{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:14px}
+  .row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 15px;border-bottom:1px solid rgba(255,255,255,.05)}
+  .row:last-child{border-bottom:0}
+  .label{font-weight:500;font-size:13px}
+  .hint{font-size:11.5px;color:#9aa0ad;margin-top:3px;line-height:1.45;max-width:380px}
+  input[type=checkbox]{flex:0 0 auto;margin-top:1px;width:34px;height:20px;appearance:none;background:rgba(255,255,255,.15);border-radius:20px;position:relative;cursor:pointer;transition:.15s}
   input[type=checkbox]:checked{background:#7c5cff}
   input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
   input[type=checkbox]:checked::after{left:16px}
-  .btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e7e9ee;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e7e9ee;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
   .btn:hover{background:rgba(255,255,255,.14)}
-  .ver{font-size:11px;color:#9aa0ad;margin-top:14px;text-align:center}
+  .sub{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a90a0;margin:4px 2px 6px}
+  .dim{opacity:.4;pointer-events:none}
 </style></head><body>
-  <h1>PuffLabs preferences</h1>
-  <div class="row"><div><div class="label">Launch at login</div><div class="hint">Open PuffLabs automatically when you sign in.</div></div><input type="checkbox" id="launchAtLogin"></div>
-  <div class="row"><div><div class="label">Keep running in the background</div><div class="hint">Closing the window keeps it in the menu bar — instant reopen + notifications keep arriving.</div></div><input type="checkbox" id="runInBackground"></div>
-  <div class="row"><div><div class="label">Dock unread badge</div><div class="hint">Show the unread count on the dock icon.</div></div><input type="checkbox" id="dockBadge"></div>
-  <div class="row"><div><div class="label">Bounce dock on new activity</div><div class="hint">Bounce the dock icon when unread count rises.</div></div><input type="checkbox" id="bounce"></div>
-  <div class="row"><div><div class="label">Show timer in menu bar</div><div class="hint">Display today\u2019s tracked total next to the menu-bar icon.</div></div><input type="checkbox" id="showTrayTimer"></div>
-  <div class="row"><div><div class="label">Updates</div><div class="hint">Check for a newer version of the app.</div></div><button class="btn" id="check">Check now</button></div>
-  <div class="ver" id="ver"></div>
+  <nav class="sidebar">
+    <button class="nav active" data-pane="general"><span class="ic gen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 14.1H3a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 4.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 3V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg></span>General</button>
+    <button class="nav" data-pane="notifications"><span class="ic notif"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Notifications</button>
+    <button class="nav" data-pane="menubar"><span class="ic bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="12" width="18" height="8" rx="1"/></svg></span>Menu bar &amp; Dock</button>
+    <button class="nav" data-pane="about"><span class="ic about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>About</button>
+  </nav>
+  <main class="content">
+    <section class="pane show" id="general">
+      <h1>General</h1>
+      <div class="card">
+        <div class="row"><div><div class="label">Launch at login</div><div class="hint">Open PuffLabs automatically when you sign in to your Mac.</div></div><input type="checkbox" id="launchAtLogin"></div>
+        <div class="row"><div><div class="label">Keep running in the background</div><div class="hint">Closing the window keeps PuffLabs in the menu bar, so it reopens instantly and notifications keep arriving.</div></div><input type="checkbox" id="runInBackground"></div>
+      </div>
+    </section>
+
+    <section class="pane" id="notifications">
+      <h1>Notifications</h1>
+      <div class="card">
+        <div class="row"><div><div class="label">Show notifications</div><div class="hint">The master switch for macOS notifications. Choose which types you want below.</div></div><input type="checkbox" id="nativeNotifications"></div>
+      </div>
+      <div class="sub">Notify me about</div>
+      <div class="card" id="typesCard">
+        <div class="row"><div><div class="label">Direct messages</div><div class="hint">Someone sends you a DM or a message in a group DM.</div></div><input type="checkbox" id="notifyDMs"></div>
+        <div class="row"><div><div class="label">Mentions &amp; keywords</div><div class="hint">You are @-mentioned, or a message matches one of your keyword alerts.</div></div><input type="checkbox" id="notifyMentions"></div>
+        <div class="row"><div><div class="label">@channel and @here</div><div class="hint">A channel-wide announcement to everyone, or everyone currently online.</div></div><input type="checkbox" id="notifyChannelWide"></div>
+        <div class="row"><div><div class="label">Other activity</div><div class="hint">Reminders, scheduled messages and other system alerts.</div></div><input type="checkbox" id="notifyOther"></div>
+      </div>
+      <div class="card">
+        <div class="row"><div><div class="label">Test notifications</div><div class="hint">Send yourself a sample notification. The first one also makes PuffLabs appear in System Settings &gt; Notifications.</div></div><button class="btn" id="testNotif">Send test</button></div>
+      </div>
+      <div class="sub">Privacy &amp; sound</div>
+      <div class="card">
+        <div class="row"><div><div class="label">Show message preview</div><div class="hint">Show the message text in notifications. Turn off to just say “New message” — handy when screen-sharing.</div></div><input type="checkbox" id="notifPreview"></div>
+        <div class="row"><div><div class="label">Silent notifications</div><div class="hint">Show notifications without playing a sound.</div></div><input type="checkbox" id="notifSilent"></div>
+      </div>
+      <div class="hint" style="padding:0 2px">Quiet hours, per-channel muting and sounds live inside the app, set from a channel menu and the bell.</div>
+    </section>
+
+    <section class="pane" id="menubar">
+      <h1>Menu bar &amp; Dock</h1>
+      <div class="card">
+        <div class="row"><div><div class="label">Show timer in the menu bar</div><div class="hint">Display today's tracked total next to the menu-bar icon.</div></div><input type="checkbox" id="showTrayTimer"></div>
+        <div class="row"><div><div class="label">Dock unread badge</div><div class="hint">Show the unread count on the Dock icon.</div></div><input type="checkbox" id="dockBadge"></div>
+        <div class="row"><div><div class="label">Bounce the Dock on new activity</div><div class="hint">Bounce the Dock icon when your unread count goes up.</div></div><input type="checkbox" id="bounce"></div>
+      </div>
+    </section>
+
+    <section class="pane" id="about">
+      <h1>About</h1>
+      <div class="card">
+        <div class="row"><div><div class="label">PuffLabs for Mac</div><div class="hint" id="ver">Version ...</div></div><button class="btn" id="check">Check for updates</button></div>
+      </div>
+    </section>
+  </main>
+
   <script>
-    const ids=["launchAtLogin","runInBackground","dockBadge","bounce","showTrayTimer"];
-    async function init(){const s=await window.prefs.get();ids.forEach(k=>{document.getElementById(k).checked=!!s[k];});document.getElementById("ver").textContent="Version "+(await window.prefs.version());}
-    ids.forEach(k=>document.getElementById(k).addEventListener("change",e=>window.prefs.set({[k]:e.target.checked})));
-    document.getElementById("check").addEventListener("click",()=>window.prefs.checkUpdates());
+    const ids=["launchAtLogin","runInBackground","nativeNotifications","notifyDMs","notifyMentions","notifyChannelWide","notifyOther","notifPreview","notifSilent","showTrayTimer","dockBadge","bounce"];
+    document.querySelectorAll(".nav").forEach(function(b){
+      b.addEventListener("click",function(){
+        document.querySelectorAll(".nav").forEach(function(n){n.classList.remove("active");});
+        document.querySelectorAll(".pane").forEach(function(p){p.classList.remove("show");});
+        b.classList.add("active");
+        document.getElementById(b.dataset.pane).classList.add("show");
+      });
+    });
+    function syncTypeDim(){ var on=document.getElementById("nativeNotifications").checked; document.getElementById("typesCard").classList.toggle("dim", !on); }
+    async function init(){
+      const s=await window.prefs.get();
+      ids.forEach(function(k){var el=document.getElementById(k); if(el) el.checked=!!s[k];});
+      document.getElementById("ver").textContent="Version "+(await window.prefs.version());
+      syncTypeDim();
+    }
+    ids.forEach(function(k){document.getElementById(k).addEventListener("change",function(e){window.prefs.set({[k]:e.target.checked}); if(k==="nativeNotifications") syncTypeDim();});});
+    document.getElementById("check").addEventListener("click",function(){window.prefs.checkUpdates();});
+    document.getElementById("testNotif").addEventListener("click",function(){window.prefs.testNotification();});
     init();
   </script>
 </body></html>

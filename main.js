@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, dialog, Notification, globalShortcut, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { createClient } = require("@supabase/supabase-js");
@@ -17,10 +17,12 @@ app.userAgentFallback =
 
 /* ---------- settings (local to this Mac, JSON in userData) ---------- */
 const SETTINGS_PATH = path.join(app.getPath("userData"), "settings.json");
-const DEFAULTS = { launchAtLogin: false, runInBackground: true, dockBadge: true, bounce: true, showTrayTimer: true };
+const DEFAULTS = { launchAtLogin: false, runInBackground: true, dockBadge: true, bounce: true, showTrayTimer: true, nativeNotifications: true, notifyDMs: true, notifyMentions: true, notifyChannelWide: true, notifyOther: true, notifPreview: true, notifSilent: false };
 function loadSettings() { try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8")) }; } catch (e) { return { ...DEFAULTS }; } }
 function saveSettings() { try { fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2)); } catch (e) {} }
 let settings = DEFAULTS;
+let snoozeUntil = 0;
+function setSnooze(until) { snoozeUntil = until && until > Date.now() ? until : 0; try { updateTrayMenu(); } catch (e) {} if (snoozeUntil) { try { setTimeout(() => { if (Date.now() >= snoozeUntil) { snoozeUntil = 0; try { updateTrayMenu(); } catch (e) {} } }, (snoozeUntil - Date.now()) + 500); } catch (e) {} } }
 function applySettings() { try { app.setLoginItemSettings({ openAtLogin: !!settings.launchAtLogin }); } catch (e) {} if (!settings.dockBadge && app.dock) app.dock.setBadge(""); }
 
 /* ---------- supabase / login (unchanged bridge) ---------- */
@@ -63,7 +65,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1320, height: 880, minWidth: 900, minHeight: 600, show: true,
     title: "PuffLabs", backgroundColor: "#030408",
-    titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 18 },
+    titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 10 },
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: false },
   });
   win.loadURL(APP_URL);
@@ -156,6 +158,8 @@ function updateTrayMenu() {
     items.push({ label: "No projects assigned", enabled: false });
   }
   items.push({ type: "separator" });
+  { const paused = Date.now() < snoozeUntil; const fmt = (t) => { try { return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }; const tomorrow8 = () => { const d = new Date(); d.setHours(d.getHours() < 8 ? 8 : 32, 0, 0, 0); return d.getTime(); }; items.push({ label: paused ? ("Notifications paused \u00b7 until " + fmt(snoozeUntil)) : "Pause notifications", submenu: paused ? [ { label: "Resume notifications", click: () => setSnooze(0) } ] : [ { label: "For 30 minutes", click: () => setSnooze(Date.now() + 1800000) }, { label: "For 1 hour", click: () => setSnooze(Date.now() + 3600000) }, { label: "Until tomorrow", click: () => setSnooze(tomorrow8()) }, { label: "Until I turn it back on", click: () => setSnooze(Date.now() + 3153600000000) } ] }); }
+  items.push({ type: "separator" });
   items.push({ label: "Open PuffLabs", click: showWindow });
   items.push({ label: "Preferences…", accelerator: "Cmd+,", click: openPrefs });
   items.push({ label: "Check for Updates…", click: () => checkForUpdates(false) });
@@ -183,7 +187,7 @@ ipcMain.on("tray:timer", (_e, state) => {
 /* ---------- preferences window ---------- */
 function openPrefs() {
   if (prefsWin) { prefsWin.focus(); return; }
-  prefsWin = new BrowserWindow({ width: 440, height: 460, resizable: false, title: "Preferences", backgroundColor: "#0b0c14",
+  prefsWin = new BrowserWindow({ width: 720, height: 560, resizable: false, title: "Preferences", backgroundColor: "#0b0c14",
     webPreferences: { preload: path.join(__dirname, "prefs-preload.js"), contextIsolation: true } });
   prefsWin.loadFile("preferences.html");
   prefsWin.on("closed", () => { prefsWin = null; });
@@ -202,6 +206,9 @@ ipcMain.handle("prefs:set", (_e, patch) => {
 });
 ipcMain.handle("prefs:version", () => app.getVersion());
 ipcMain.handle("prefs:check-updates", () => checkForUpdates(false));
+ipcMain.on("open-prefs", () => openPrefs());
+ipcMain.handle("prefs:test-notification", () => { try { const n = new Notification({ title: "PuffLabs", body: "Notifications are working. You'll get these for mentions, replies and direct messages." }); n.on("click", () => showWindow()); n.show(); return true; } catch (e) { return false; } });
+ipcMain.on("notify:show", (_e, p) => { try { if (settings.nativeNotifications === false) return; if (Date.now() < snoozeUntil) return; if (!p || !p.title) return; { const k = p.kind || ""; const ok = k === "dm" ? settings.notifyDMs !== false : k === "channel_mention" ? settings.notifyMentions !== false : k === "channel_at_channel" ? settings.notifyChannelWide !== false : settings.notifyOther !== false; if (!ok) return; } const body = settings.notifPreview === false ? "New message" : String(p.body || ""); const n = new Notification({ title: String(p.title), body, silent: settings.notifSilent === true }); n.on("click", () => { showWindow(); if (p.url && win && !win.isDestroyed()) win.webContents.send("notify:click", String(p.url)); }); n.show(); } catch (e) {} });
 
 /* ---------- update check (compares to a version file you control) ---------- */
 function vGt(a, b) { const pa = String(a).split(".").map(Number), pb = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((pa[i] || 0) > (pb[i] || 0)) return true; if ((pa[i] || 0) < (pb[i] || 0)) return false; } return false; }
@@ -226,7 +233,14 @@ function buildMenu() {
     { role: "editMenu" },
     { label: "View", submenu: [ { label: "Communications", accelerator: "Cmd+1", click: () => { showWindow(); win.loadURL(APP_URL); } }, { label: "Sign in", accelerator: "Cmd+L", click: startLogin }, { type: "separator" }, { role: "reload" }, { role: "forceReload" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" } ] },
     { role: "windowMenu" },
+    { role: "help", submenu: [ { label: "Force Reload (fetch the latest build)", role: "forceReload" }, { label: "Clear Cache & Restart", click: clearCacheAndRestart }, { type: "separator" }, { label: "Check for Updates\u2026", click: () => checkForUpdates(false) }, { type: "separator" }, { label: "PuffLabs Website", click: () => shell.openExternal(HOME_ORIGIN) } ] },
   ]));
+}
+
+async function clearCacheAndRestart() {
+  try { const ses = (win && !win.isDestroyed()) ? win.webContents.session : session.defaultSession; await ses.clearCache(); } catch (e) {}
+  try { app.relaunch(); } catch (e) {}
+  app.isQuitting = true; app.exit(0);
 }
 
 /* ---------- lifecycle ---------- */
@@ -240,6 +254,7 @@ else {
     const iconPath = path.join(__dirname, "icon.png");
     if (app.dock && fs.existsSync(iconPath)) { try { app.dock.setIcon(nativeImage.createFromPath(iconPath)); } catch (e) {} }
     createWindow(); createTray(); buildMenu();
+    try { globalShortcut.register("CommandOrControl+Shift+P", () => { showWindow(); try { if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.dispatchEvent(new Event('pufflabs:open-command-palette'))").catch(() => {}); } catch (e) {} }); } catch (e) {}
     setTimeout(() => checkForUpdates(true), 4000);           // silent check on launch
     // Only surface a window when there ISN\u2019T one already visible. The old
     // unconditional showWindow() re-focused the window on every activate
@@ -250,7 +265,7 @@ else {
       else if (!win.isVisible()) showWindow();
     });
   });
-  app.on("before-quit", () => { app.isQuitting = true; });
+  app.on("before-quit", () => { app.isQuitting = true; try { globalShortcut.unregisterAll(); } catch (e) {} });
   // Stay alive in the background (tray) even with no windows.
   app.on("window-all-closed", () => { if (process.platform !== "darwin" && !settings.runInBackground) app.quit(); });
 }
