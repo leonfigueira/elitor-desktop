@@ -17,7 +17,7 @@ app.userAgentFallback =
 
 /* ---------- settings (local to this Mac, JSON in userData) ---------- */
 const SETTINGS_PATH = path.join(app.getPath("userData"), "settings.json");
-const DEFAULTS = { launchAtLogin: false, runInBackground: true, dockBadge: true, bounce: true, showTrayTimer: true, nativeNotifications: true, notifyDMs: true, notifyMentions: true, notifyChannelWide: true, notifyOther: true, notifPreview: true, notifSilent: false };
+const DEFAULTS = { launchAtLogin: false, runInBackground: true, dockBadge: true, bounce: true, showTrayTimer: true, nativeNotifications: true, notifyDMs: true, notifyMentions: true, notifyChannelWide: true, notifyOther: true, notifPreview: true, notifSilent: false, globalHotkey: true };
 function loadSettings() { try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8")) }; } catch (e) { return { ...DEFAULTS }; } }
 function saveSettings() { try { fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2)); } catch (e) {} }
 let settings = DEFAULTS;
@@ -194,7 +194,7 @@ function openPrefs() {
 }
 ipcMain.handle("prefs:get", () => settings);
 ipcMain.handle("prefs:set", (_e, patch) => {
-  settings = { ...settings, ...patch }; saveSettings(); applySettings();
+  settings = { ...settings, ...patch }; saveSettings(); applySettings(); applyGlobalHotkey();
   // Apply the menu-bar timer visibility immediately (don\u2019t wait for the
   // next push, which only happens on a store change / tick).
   if (tray) {
@@ -243,6 +243,12 @@ async function clearCacheAndRestart() {
   app.isQuitting = true; app.exit(0);
 }
 
+function applyGlobalHotkey() {
+  try { globalShortcut.unregister("CommandOrControl+Shift+P"); } catch (e) {}
+  if (settings.globalHotkey === false) return;
+  try { globalShortcut.register("CommandOrControl+Shift+P", () => { showWindow(); try { if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.dispatchEvent(new Event('pufflabs:open-command-palette'))").catch(() => {}); } catch (e) {} }); } catch (e) {}
+}
+
 /* ---------- lifecycle ---------- */
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 else {
@@ -254,7 +260,7 @@ else {
     const iconPath = path.join(__dirname, "icon.png");
     if (app.dock && fs.existsSync(iconPath)) { try { app.dock.setIcon(nativeImage.createFromPath(iconPath)); } catch (e) {} }
     createWindow(); createTray(); buildMenu();
-    try { globalShortcut.register("CommandOrControl+Shift+P", () => { showWindow(); try { if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.dispatchEvent(new Event('pufflabs:open-command-palette'))").catch(() => {}); } catch (e) {} }); } catch (e) {}
+    applyGlobalHotkey();
     setTimeout(() => checkForUpdates(true), 4000);           // silent check on launch
     // Only surface a window when there ISN\u2019T one already visible. The old
     // unconditional showWindow() re-focused the window on every activate

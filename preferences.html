@@ -39,6 +39,7 @@
       <div class="card">
         <div class="row"><div><div class="label">Launch at login</div><div class="hint">Open PuffLabs automatically when you sign in to your Mac.</div></div><input type="checkbox" id="launchAtLogin"></div>
         <div class="row"><div><div class="label">Keep running in the background</div><div class="hint">Closing the window keeps PuffLabs in the menu bar, so it reopens instantly and notifications keep arriving.</div></div><input type="checkbox" id="runInBackground"></div>
+        <div class="row"><div><div class="label">Global show/hide shortcut</div><div class="hint">Press \u2318\u21e7P from any app to bring PuffLabs to the front and open the command palette. Turn off if it clashes with another app\u2019s shortcut.</div></div><input type="checkbox" id="globalHotkey"></div>
       </div>
     </section>
 
@@ -83,7 +84,7 @@
   </main>
 
   <script>
-    const ids=["launchAtLogin","runInBackground","nativeNotifications","notifyDMs","notifyMentions","notifyChannelWide","notifyOther","notifPreview","notifSilent","showTrayTimer","dockBadge","bounce"];
+    const ids=["launchAtLogin","runInBackground","globalHotkey","nativeNotifications","notifyDMs","notifyMentions","notifyChannelWide","notifyOther","notifPreview","notifSilent","showTrayTimer","dockBadge","bounce"];
     document.querySelectorAll(".nav").forEach(function(b){
       b.addEventListener("click",function(){
         document.querySelectorAll(".nav").forEach(function(n){n.classList.remove("active");});
