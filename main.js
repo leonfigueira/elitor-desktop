@@ -63,10 +63,10 @@ function showWindow() { if (!win || win.isDestroyed()) createWindow(); win.show(
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1320, height: 880, minWidth: 900, minHeight: 600, show: true,
+    ...savedBoundsOrDefault(), minWidth: 900, minHeight: 600, show: true,
     title: "PuffLabs", backgroundColor: "#030408",
     titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 10 },
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: false },
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: false, spellcheck: true },
   });
   win.loadURL(APP_URL);
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -98,7 +98,22 @@ function createWindow() {
   // the Dock icon: app.dock.hide()/show() re-lays-out the whole Dock every
   // time (the "Finder icon glitches" Leon saw). The Dock icon now stays put.
   win.on("close", (e) => { if (settings.runInBackground && !app.isQuitting) { e.preventDefault(); win.hide(); } });
+  win.on("resize", scheduleBoundsSave);
+  win.on("move", scheduleBoundsSave);
+  win.webContents.on("context-menu", (_e, params) => {
+    const items = [];
+    for (const sug of (params.dictionarySuggestions || [])) items.push({ label: sug, click: () => { try { win.webContents.replaceMisspelling(sug); } catch (e) {} } });
+    if (params.misspelledWord) { if (items.length) items.push({ type: "separator" }); items.push({ label: "Add to Dictionary", click: () => { try { win.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord); } catch (e) {} } }, { type: "separator" }); }
+    items.push({ role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" });
+    try { Menu.buildFromTemplate(items).popup(); } catch (e) {}
+  });
 }
+
+/* ---------- window bounds memory ---------- */
+let boundsTimer = null;
+function persistBounds() { try { if (win && !win.isDestroyed() && !win.isMinimized()) { settings.windowBounds = win.getBounds(); saveSettings(); } } catch (e) {} }
+function scheduleBoundsSave() { if (boundsTimer) clearTimeout(boundsTimer); boundsTimer = setTimeout(persistBounds, 600); }
+function savedBoundsOrDefault() { try { const b = settings.windowBounds; if (b && b.width >= 600 && b.height >= 400) return { x: b.x, y: b.y, width: b.width, height: b.height }; } catch (e) {} return { width: 1320, height: 880 }; }
 
 /* ---------- tray (menu bar) ---------- */
 function createTray() {
