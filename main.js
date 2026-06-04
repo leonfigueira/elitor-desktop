@@ -73,6 +73,9 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: false, spellcheck: true },
   });
   win.loadURL(APP_URL);
+  // Windows taskbar timer affordances: prebuild the small glyphs once the page
+  // (and its canvas) is alive. Guarded so re-navigations don't rebuild.
+  if (IS_WIN) win.webContents.on("did-finish-load", () => { prebuildWinIcons(); });
   // Custom window controls: the web draws mac-style dots on Windows and needs
   // the maximize state; clear the taskbar flash when the window is focused.
   win.on("maximize", () => { try { win.webContents.send("win:maximized-changed", true); } catch (e) {} });
@@ -128,6 +131,7 @@ function savedBoundsOrDefault() { try { const b = settings.windowBounds; if (b &
 function createTray() {
   let img = nativeImage.createFromPath(path.join(__dirname, "icon.png"));
   if (!img.isEmpty()) img = img.resize({ width: 18, height: 18 });
+  trayDefaultImg = img.isEmpty() ? null : img; // kept so Windows can restore the plain icon when idle
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
   tray.setToolTip("PuffLabs · time tracker");
   // No tray.on("click", showWindow): with a context menu, left-click already
@@ -206,13 +210,107 @@ ipcMain.on("tray:timer", (_e, state) => {
     const title = (settings.showTrayTimer !== false && next.label) ? " " + next.label : "";
     if (title !== lastTrayTitle) { try { tray.setTitle(title); } catch (e) {} lastTrayTitle = title; }
   } else {
-    // Windows tray has no title text; surface the running total in the tooltip.
+    // Windows tray has no title text; surface the running total in the tooltip,
+    // draw the time into the icon, and update the taskbar overlay + thumbbar.
     const tip = next.running ? ("PuffLabs · " + (next.projectName || "tracking") + (next.label ? "  " + next.label : "")) : (next.label ? ("PuffLabs · today " + next.label) : "PuffLabs · time tracker");
     if (tip !== lastTrayTitle) { try { tray.setToolTip(tip); } catch (e) {} lastTrayTitle = tip; }
+    updateWinTaskbar(next);
   }
   const sig = trayMenuSignature(next);
   if (sig !== lastMenuSig) { lastMenuSig = sig; updateTrayMenu(); }
 });
+
+/* ---------- Windows taskbar timer (macOS paints live text in the menu bar via
+   tray.setTitle, which Windows has no equivalent for). To get as close as is
+   natively possible on Windows we: (1) draw the elapsed time INTO the tray icon
+   each minute, (2) put a red dot OVERLAY on the taskbar button while recording,
+   and (3) expose Start/Stop in the taskbar THUMBNAIL toolbar. All the pixels are
+   rendered in the (always-alive) renderer canvas via executeJavaScript → PNG
+   dataURL → nativeImage; every call is wrapped so it can never crash the app and
+   the whole block no-ops on macOS. ---------- */
+let trayDefaultImg = null;                         // plain PuffLabs tray icon (set in createTray)
+let icoStart = null, icoStop = null, icoOverlayRec = null; // prebuilt 16px glyphs
+let lastWinIconKey = "", lastWinRunning = null, winIconsReady = false;
+
+// Compact today-total for a 32px tile: "23m" under an hour, else "1:23".
+function winCompactTime(label) {
+  const m = /^(\d+):(\d{2}):(\d{2})$/.exec(label || "");
+  if (!m) return label || "";
+  const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+  return h > 0 ? (h + ":" + String(min).padStart(2, "0")) : (min + "m");
+}
+
+// Run a canvas snippet in the renderer; resolve to a nativeImage (or null).
+async function renderIconInRenderer(jsExpr) {
+  try {
+    if (!win || win.isDestroyed() || !win.webContents || win.webContents.isDestroyed()) return null;
+    const dataUrl = await win.webContents.executeJavaScript(jsExpr);
+    if (typeof dataUrl === "string" && dataUrl.indexOf("data:image/png") === 0) {
+      const img = nativeImage.createFromDataURL(dataUrl);
+      return img.isEmpty() ? null : img;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// 32px rounded dark tile: white time text + a red rec dot when running.
+function trayTimeIconExpr(text, running) {
+  return "(() => { const S=32,c=document.createElement('canvas');c.width=S;c.height=S;const x=c.getContext('2d');const r=7;x.beginPath();x.moveTo(r,0);x.arcTo(S,0,S,S,r);x.arcTo(S,S,0,S,r);x.arcTo(0,S,0,0,r);x.arcTo(0,0,S,0,r);x.closePath();x.fillStyle='#0c0a1a';x.fill();x.strokeStyle='rgba(255,255,255,0.10)';x.lineWidth=1;x.stroke();const t=" + JSON.stringify(String(text || "")) + ";x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';const fs=t.length>=4?12:(t.length===3?14:16);x.font='600 '+fs+'px Segoe UI, system-ui, sans-serif';x.fillText(t,S/2,S/2+1);" + (running ? "x.fillStyle='#f43f5e';x.beginPath();x.arc(S-5,5,4,0,7);x.fill();" : "") + "return c.toDataURL('image/png'); })()";
+}
+
+// 16px glyphs for the overlay badge + thumbbar buttons.
+function glyphExpr(kind) {
+  const draw = {
+    rec: "x.fillStyle='#f43f5e';x.beginPath();x.arc(8,8,7,0,7);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(8,8,3,0,7);x.fill();",
+    play: "x.fillStyle='#fff';x.beginPath();x.moveTo(4,3);x.lineTo(13,8);x.lineTo(4,13);x.closePath();x.fill();",
+    stop: "x.fillStyle='#fff';x.fillRect(4,4,8,8);",
+  }[kind] || "";
+  return "(() => { const S=16,c=document.createElement('canvas');c.width=S;c.height=S;const x=c.getContext('2d');" + draw + "return c.toDataURL('image/png'); })()";
+}
+
+async function prebuildWinIcons() {
+  if (!IS_WIN || winIconsReady) return;
+  icoOverlayRec = await renderIconInRenderer(glyphExpr("rec"));
+  icoStart = await renderIconInRenderer(glyphExpr("play"));
+  icoStop = await renderIconInRenderer(glyphExpr("stop"));
+  winIconsReady = true;
+  // Now that the glyphs exist, force a full re-apply of the current state.
+  lastWinRunning = null; lastWinIconKey = "";
+  try { updateWinTaskbar(timerState); } catch (e) {}
+}
+
+function setWinThumbbar(running) {
+  if (!IS_WIN || !win || win.isDestroyed()) return;
+  const buttons = [];
+  if (running && icoStop) buttons.push({ tooltip: "Stop & log", icon: icoStop, click: () => trayCommand({ action: "stop" }) });
+  else if (!running && icoStart) buttons.push({ tooltip: "Start last timer", icon: icoStart, click: () => trayCommand({ action: "start-last" }) });
+  try { win.setThumbarButtons(buttons); } catch (e) {}
+}
+
+async function updateWinTaskbar(state) {
+  if (!IS_WIN || !tray) return;
+  const running = !!(state && state.running);
+  // Overlay badge + thumbbar buttons flip with the running state.
+  if (running !== lastWinRunning) {
+    lastWinRunning = running;
+    try { if (win && !win.isDestroyed()) win.setOverlayIcon(running ? icoOverlayRec : null, running ? "Recording" : ""); } catch (e) {}
+    setWinThumbbar(running);
+    if (!running) { try { if (trayDefaultImg) tray.setImage(trayDefaultImg); } catch (e) {} lastWinIconKey = ""; }
+  }
+  if (!running) return;
+  // While running: draw the time into the tray icon (only when the minute
+  // changes), unless the user turned the tray timer off (then keep plain icon).
+  if (settings.showTrayTimer === false) {
+    if (lastWinIconKey !== "_plain") { lastWinIconKey = "_plain"; try { if (trayDefaultImg) tray.setImage(trayDefaultImg); } catch (e) {} }
+    return;
+  }
+  const text = winCompactTime(state.label) || "0m";
+  if (text !== lastWinIconKey) {
+    lastWinIconKey = text;
+    const img = await renderIconInRenderer(trayTimeIconExpr(text, true));
+    if (img) { try { tray.setImage(img); } catch (e) {} }
+  }
+}
 
 /* ---------- preferences window ---------- */
 function openPrefs() {
@@ -231,6 +329,9 @@ ipcMain.handle("prefs:set", (_e, patch) => {
     const title = (settings.showTrayTimer !== false && timerState.label) ? " " + timerState.label : "";
     try { tray.setTitle(title); } catch (e) {}
     lastTrayTitle = title;
+  } else if (tray && IS_WIN) {
+    // Re-apply the Windows tray-icon timer (draw time vs plain) right away.
+    lastWinIconKey = ""; try { updateWinTaskbar(timerState); } catch (e) {}
   }
   return settings;
 });
