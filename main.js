@@ -440,11 +440,15 @@ ipcMain.handle("puffstaff:idle", () => { try { return powerMonitor.getSystemIdle
 ipcMain.handle("puffstaff:screen-perm", () => { try { return process.platform === "darwin" ? systemPreferences.getMediaAccessStatus("screen") : "granted"; } catch (e) { return "unknown"; } });
 ipcMain.handle("puffstaff:screens", async () => {
   try {
-    if (process.platform === "darwin" && systemPreferences.getMediaAccessStatus("screen") !== "granted") return { perm: "denied", shots: [] };
+    // not-determined → calling getSources triggers the macOS Screen Recording prompt; only bail when the user has explicitly denied.
+    const __st = process.platform === "darwin" ? systemPreferences.getMediaAccessStatus("screen") : "granted";
+    // NOTE: do NOT bail on "denied" — macOS getMediaAccessStatus("screen") reports
+    // "denied" even when merely not-yet-granted; calling getSources is what surfaces
+    // the Screen Recording prompt (requires a signed app).
     const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1280, height: 800 } });
     const shots = sources.map((s, i) => { try { const jpg = s.thumbnail.toJPEG(55); if (!jpg || !jpg.length) return null; return { displayIndex: i, dataUrl: "data:image/jpeg;base64," + jpg.toString("base64") }; } catch (e) { return null; } }).filter(Boolean);
     return { perm: "granted", shots };
-  } catch (e) { return { perm: "error", shots: [] }; }
+  } catch (e) { return { perm: "error", err: String(e && e.message || e), shots: [] }; }
 });
 
 
