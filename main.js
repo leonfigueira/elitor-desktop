@@ -82,7 +82,7 @@ let win = null, tray = null, prefsWin = null, lastUnread = 0;
 let timerState = { running: false, label: "", projectName: "", categoryLabel: "", recent: [], projects: [] };
 let lastTrayTitle = null, lastMenuSig = "";
 function trayMenuSignature(s) {
-  return JSON.stringify({ r: s.running, p: s.projectName, c: s.categoryLabel, t: s.running ? "" : s.label, rec: (s.recent || []).map((x) => x.id + "|" + x.name), ids: (s.projects || []).map((x) => x.id + "|" + x.name) });
+  return JSON.stringify({ r: s.running, p: s.projectName, c: s.categoryLabel, t: s.running ? "" : s.label, rec: (s.recent || []).map((x) => x.id + "|" + x.name), ids: (s.projects || []).map((x) => x.id + "|" + x.name + "|" + ((x.timers || []).map((t) => t.id + ":" + t.name).join(","))) });
 }
 function stayInApp(u) { try { const x = new URL(u); const h = x.hostname.toLowerCase(); const okHost = (d) => h === d || h.endsWith("." + d); return x.origin === HOME_ORIGIN || okHost("google.com") || okHost("gstatic.com") || okHost("supabase.co"); } catch (e) { return false; } }
 function showWindow() { if (!win || win.isDestroyed()) createWindow(); win.show(); win.focus(); }
@@ -173,10 +173,22 @@ function updateTrayMenu() {
   const items = [];
   // Each project opens a submenu to pick the bucket, then starts/switches.
   // NOTE: "&&" renders as a literal "&" (a single "&" is eaten as a mnemonic).
-  const catSub = (pr) => [
-    { label: "Production", click: () => trayCommand({ action: "start", projectId: pr.id, category: "production" }) },
-    { label: "Meetings && training", click: () => trayCommand({ action: "start", projectId: pr.id, category: "meeting" }) },
+  // Category picker for a specific timer (timerId undefined = the group's
+  // built-in "General" timer). Each click starts/switches to that timer+bucket.
+  const catItems = (pr, timerId) => [
+    { label: "Production", click: () => trayCommand({ action: "start", projectId: pr.id, timerId: timerId, category: "production" }) },
+    { label: "Meetings && training", click: () => trayCommand({ action: "start", projectId: pr.id, timerId: timerId, category: "meeting" }) },
   ];
+  // A project that has EXTRA named timers nests them (General + each named
+  // timer); a plain project shows Production / Meetings directly.
+  const catSub = (pr) => {
+    const named = Array.isArray(pr.timers) ? pr.timers : [];
+    if (named.length === 0) return catItems(pr, undefined);
+    return [
+      { label: "General", submenu: catItems(pr, undefined) },
+      ...named.map((tm) => ({ label: tm.name, submenu: catItems(pr, tm.id) })),
+    ];
+  };
   const projects = Array.isArray(timerState.projects) ? timerState.projects : [];
   const recent = Array.isArray(timerState.recent) ? timerState.recent : [];
   if (timerState.running) {
