@@ -223,6 +223,7 @@ function updateTrayMenu() {
   items.push({ label: "Preferences…", accelerator: "CommandOrControl+,", click: openPrefs });
   items.push({ label: "Check for Updates…", click: () => checkForUpdates(false) });
   items.push({ type: "separator" });
+  items.push({ label: "Clear cache & restart", click: clearCacheAndRestart });
   items.push({ label: "Quit PuffLabs", click: () => { app.isQuitting = true; app.quit(); } });
   tray.setContextMenu(Menu.buildFromTemplate(items));
 }
@@ -417,7 +418,15 @@ function buildMenu() {
 }
 
 async function clearCacheAndRestart() {
-  try { const ses = (win && !win.isDestroyed()) ? win.webContents.session : session.defaultSession; await ses.clearCache(); } catch (e) {}
+  try {
+    const ses = (win && !win.isDestroyed()) ? win.webContents.session : session.defaultSession;
+    await ses.clearCache();
+    // Also clear the Service Worker + cache storage (the usual culprit behind
+    // a stale post-deploy bundle). Cookies / localStorage / IndexedDB are NOT
+    // cleared, so the signed-in session survives the restart.
+    try { await ses.clearStorageData({ storages: ["serviceworkers", "cachestorage", "shadercache"] }); } catch (e) {}
+    try { if (ses.clearCodeCaches) ses.clearCodeCaches({ urls: [] }); } catch (e) {}
+  } catch (e) {}
   try { app.relaunch(); } catch (e) {}
   app.isQuitting = true; app.exit(0);
 }
