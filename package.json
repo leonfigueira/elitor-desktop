@@ -1,8 +1,8 @@
 {
   "name": "pufflabs-desktop",
-  "productName": "PuffLabs",
+  "productName": "Elitor",
   "version": "0.2.8",
-  "description": "PuffLabs Communications — cross-platform desktop app (macOS + Windows; thin shell around the live site)",
+  "description": "Elitor Communications — cross-platform desktop app (macOS + Windows; thin shell around the live site)",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -23,7 +23,7 @@
   },
   "build": {
     "appId": "work.pufflabs.desktop",
-    "productName": "PuffLabs",
+    "productName": "Elitor",
     "mac": {
       "target": "dmg",
       "category": "public.app-category.business",
@@ -31,7 +31,7 @@
       "identity": null
     },
     "dmg": {
-      "artifactName": "PuffLabs.dmg"
+      "artifactName": "Elitor.dmg"
     },
     "win": {
       "target": [
@@ -45,17 +45,17 @@
       "icon": "icon.ico"
     },
     "nsis": {
-      "artifactName": "PuffLabs-Setup.exe",
+      "artifactName": "Elitor-Setup.exe",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "PuffLabs"
+      "shortcutName": "Elitor"
     },
     "protocols": [
       {
-        "name": "PuffLabs",
+        "name": "Elitor",
         "schemes": [
           "pufflabs"
         ]
@@ -67,9 +67,9 @@
       ],
       "category": "Network",
       "icon": "icon.png",
-      "artifactName": "PuffLabs.AppImage",
-      "maintainer": "PuffLabs <support@pufflabs.work>",
-      "synopsis": "PuffLabs Communications"
+      "artifactName": "Elitor.AppImage",
+      "maintainer": "Elitor <support@pufflabs.work>",
+      "synopsis": "Elitor Communications"
     }
   }
 }

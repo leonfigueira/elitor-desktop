@@ -90,7 +90,7 @@ function showWindow() { if (!win || win.isDestroyed()) createWindow(); win.show(
 function createWindow() {
   win = new BrowserWindow({
     ...savedBoundsOrDefault(), minWidth: 900, minHeight: 600, show: true,
-    title: "PuffLabs", backgroundColor: "#030408",
+    title: "Elitor", backgroundColor: "#030408",
     ...(IS_MAC ? { titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 10 } } : { frame: false }),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, webSecurity: true, sandbox: false, spellcheck: true, backgroundThrottling: false },
   });
@@ -155,10 +155,10 @@ function createTray() {
   if (!img.isEmpty()) img = img.resize({ width: 18, height: 18 });
   trayDefaultImg = img.isEmpty() ? null : img; // kept so Windows can restore the plain icon when idle
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
-  tray.setToolTip("PuffLabs · time tracker");
+  tray.setToolTip("Elitor · time tracker");
   // No tray.on("click", showWindow): with a context menu, left-click already
   // opens the menu, and showing/focusing the window stole focus from it (the
-  // menu kept snapping shut). "Open PuffLabs" in the menu opens the app.
+  // menu kept snapping shut). "Open Elitor" in the menu opens the app.
   updateTrayMenu();
 }
 function trayCommand(payload) {
@@ -219,12 +219,12 @@ function updateTrayMenu() {
   items.push({ type: "separator" });
   { const paused = Date.now() < snoozeUntil; const fmt = (t) => { try { return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }; const tomorrow8 = () => { const d = new Date(); d.setHours(d.getHours() < 8 ? 8 : 32, 0, 0, 0); return d.getTime(); }; items.push({ label: paused ? ("Notifications paused \u00b7 until " + fmt(snoozeUntil)) : "Pause notifications", submenu: paused ? [ { label: "Resume notifications", click: () => setSnooze(0) } ] : [ { label: "For 30 minutes", click: () => setSnooze(Date.now() + 1800000) }, { label: "For 1 hour", click: () => setSnooze(Date.now() + 3600000) }, { label: "Until tomorrow", click: () => setSnooze(tomorrow8()) }, { label: "Until I turn it back on", click: () => setSnooze(Date.now() + 3153600000000) } ] }); }
   items.push({ type: "separator" });
-  items.push({ label: "Open PuffLabs", click: showWindow });
+  items.push({ label: "Open Elitor", click: showWindow });
   items.push({ label: "Preferences…", accelerator: "CommandOrControl+,", click: openPrefs });
   items.push({ label: "Check for Updates…", click: () => checkForUpdates(false) });
   items.push({ type: "separator" });
   items.push({ label: "Clear cache & restart", click: clearCacheAndRestart });
-  items.push({ label: "Quit PuffLabs", click: () => { app.isQuitting = true; app.quit(); } });
+  items.push({ label: "Quit Elitor", click: () => { app.isQuitting = true; app.quit(); } });
   tray.setContextMenu(Menu.buildFromTemplate(items));
 }
 ipcMain.on("tray:timer", (_e, state) => {
@@ -244,7 +244,7 @@ ipcMain.on("tray:timer", (_e, state) => {
   } else {
     // Windows tray has no title text; surface the running total in the tooltip,
     // draw the time into the icon, and update the taskbar overlay + thumbbar.
-    const tip = next.running ? ("PuffLabs · " + (next.projectName || "tracking") + (next.label ? "  " + next.label : "")) : (next.label ? ("PuffLabs · today " + next.label) : "PuffLabs · time tracker");
+    const tip = next.running ? ("Elitor · " + (next.projectName || "tracking") + (next.label ? "  " + next.label : "")) : (next.label ? ("Elitor · today " + next.label) : "Elitor · time tracker");
     if (tip !== lastTrayTitle) { try { tray.setToolTip(tip); } catch (e) {} lastTrayTitle = tip; }
     updateWinTaskbar(next);
   }
@@ -260,7 +260,7 @@ ipcMain.on("tray:timer", (_e, state) => {
    rendered in the (always-alive) renderer canvas via executeJavaScript → PNG
    dataURL → nativeImage; every call is wrapped so it can never crash the app and
    the whole block no-ops on macOS. ---------- */
-let trayDefaultImg = null;                         // plain PuffLabs tray icon (set in createTray)
+let trayDefaultImg = null;                         // plain Elitor tray icon (set in createTray)
 let icoStart = null, icoStop = null, icoOverlayRec = null; // prebuilt 16px glyphs
 let lastWinIconKey = "", lastWinRunning = null, winIconsReady = false;
 
@@ -383,7 +383,7 @@ ipcMain.handle("win:is-maximized", (e) => { try { const w = BrowserWindow.fromWe
    in the real browser. Resetting loggingIn first means every click retries
    cleanly — no stuck state that used to need an app restart. ---------- */
 ipcMain.on("auth:start-login", () => { loggingIn = false; startLogin(); });
-ipcMain.handle("prefs:test-notification", () => { try { const n = new Notification({ title: "PuffLabs", body: "Notifications are working. You'll get these for mentions, replies and direct messages." }); n.on("click", () => showWindow()); n.show(); return true; } catch (e) { return false; } });
+ipcMain.handle("prefs:test-notification", () => { try { const n = new Notification({ title: "Elitor", body: "Notifications are working. You'll get these for mentions, replies and direct messages." }); n.on("click", () => showWindow()); n.show(); return true; } catch (e) { return false; } });
 ipcMain.on("notify:show", (_e, p) => { try { if (settings.nativeNotifications === false) return; if (Date.now() < snoozeUntil) return; if (!p || !p.title) return; { const k = p.kind || ""; const ok = k === "dm" ? settings.notifyDMs !== false : k === "channel_mention" ? settings.notifyMentions !== false : k === "channel_at_channel" ? settings.notifyChannelWide !== false : settings.notifyOther !== false; if (!ok) return; } const body = settings.notifPreview === false ? "New message" : String(p.body || ""); const n = new Notification({ title: String(p.title), body, silent: settings.notifSilent === true }); n.on("click", () => { showWindow(); if (p.url && win && !win.isDestroyed()) win.webContents.send("notify:click", String(p.url)); }); n.show(); } catch (e) {} });
 
 /* ---------- update check (compares to a version file you control) ---------- */
@@ -394,10 +394,10 @@ async function checkForUpdates(silent) {
     if (!r.ok) throw new Error("no feed");
     const j = await r.json();
     if (j && j.version && vGt(j.version, app.getVersion())) {
-      const res = await dialog.showMessageBox({ type: "info", buttons: ["Download", "Later"], defaultId: 0, message: "Update available", detail: "PuffLabs " + j.version + " is available (you have " + app.getVersion() + ")." });
+      const res = await dialog.showMessageBox({ type: "info", buttons: ["Download", "Later"], defaultId: 0, message: "Update available", detail: "Elitor " + j.version + " is available (you have " + app.getVersion() + ")." });
       if (res.response === 0) shell.openExternal((IS_WIN ? (j.url_win || j.url) : (j.url_mac || j.url)) || DOWNLOAD_PAGE);
     } else if (!silent) {
-      dialog.showMessageBox({ type: "info", message: "You're up to date", detail: "PuffLabs " + app.getVersion() });
+      dialog.showMessageBox({ type: "info", message: "You're up to date", detail: "Elitor " + app.getVersion() });
     }
   } catch (e) { if (!silent) dialog.showMessageBox({ type: "info", message: "Couldn't check for updates", detail: "Try again later." }); }
 }
@@ -406,14 +406,14 @@ async function checkForUpdates(silent) {
 function buildMenu() {
   const tmpl = [];
   if (IS_MAC) {
-    tmpl.push({ label: "PuffLabs", submenu: [ { role: "about" }, { label: "Preferences\u2026", accelerator: "CommandOrControl+,", click: openPrefs }, { label: "Check for Updates\u2026", click: () => checkForUpdates(false) }, { type: "separator" }, { label: "Sign Out", click: signOut }, { type: "separator" }, { role: "hide" }, { role: "hideOthers" }, { type: "separator" }, { label: "Quit", accelerator: "CommandOrControl+Q", click: () => { app.isQuitting = true; app.quit(); } } ] });
+    tmpl.push({ label: "Elitor", submenu: [ { role: "about" }, { label: "Preferences\u2026", accelerator: "CommandOrControl+,", click: openPrefs }, { label: "Check for Updates\u2026", click: () => checkForUpdates(false) }, { type: "separator" }, { label: "Sign Out", click: signOut }, { type: "separator" }, { role: "hide" }, { role: "hideOthers" }, { type: "separator" }, { label: "Quit", accelerator: "CommandOrControl+Q", click: () => { app.isQuitting = true; app.quit(); } } ] });
   } else {
     tmpl.push({ label: "File", submenu: [ { label: "Preferences\u2026", accelerator: "CommandOrControl+,", click: openPrefs }, { label: "Check for Updates\u2026", click: () => checkForUpdates(false) }, { type: "separator" }, { label: "Sign Out", click: signOut }, { type: "separator" }, { label: "Quit", accelerator: "CommandOrControl+Q", click: () => { app.isQuitting = true; app.quit(); } } ] });
   }
   tmpl.push({ role: "editMenu" });
   tmpl.push({ label: "View", submenu: [ { label: "Communications", accelerator: "CommandOrControl+1", click: () => { showWindow(); win.loadURL(APP_URL); } }, { label: "Sign in", accelerator: "CommandOrControl+L", click: startLogin }, { label: "Sign out", accelerator: "CommandOrControl+Shift+L", click: signOut }, { type: "separator" }, { role: "reload" }, { role: "forceReload" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" } ] });
   tmpl.push({ role: "windowMenu" });
-  tmpl.push({ role: "help", submenu: [ { label: "Force Reload (fetch the latest build)", role: "forceReload" }, { label: "Clear Cache && Restart", click: clearCacheAndRestart }, { type: "separator" }, { label: "Check for Updates\u2026", click: () => checkForUpdates(false) }, { type: "separator" }, { label: "PuffLabs Website", click: () => shell.openExternal(HOME_ORIGIN) } ] });
+  tmpl.push({ role: "help", submenu: [ { label: "Force Reload (fetch the latest build)", role: "forceReload" }, { label: "Clear Cache && Restart", click: clearCacheAndRestart }, { type: "separator" }, { label: "Check for Updates\u2026", click: () => checkForUpdates(false) }, { type: "separator" }, { label: "Elitor Website", click: () => shell.openExternal(HOME_ORIGIN) } ] });
   Menu.setApplicationMenu(Menu.buildFromTemplate(tmpl));
 }
 
@@ -435,6 +435,39 @@ function applyGlobalHotkey() {
   try { globalShortcut.unregister("CommandOrControl+Shift+P"); } catch (e) {}
   if (settings.globalHotkey === false) return;
   try { globalShortcut.register("CommandOrControl+Shift+P", () => { showWindow(); try { if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.dispatchEvent(new Event('pufflabs:open-command-palette'))").catch(() => {}); } catch (e) {} }); } catch (e) {}
+}
+
+/* ---------- away watch (sleep / lock) ────────────────────────────────────
+ * When the Mac sleeps (lid closed) or the screen locks while a timer is
+ * running, the renderer's wall-clock keeps counting — that's how Leon banked
+ * ~37h overnight. We watch the OS power events here (the renderer can't) and
+ * tell it how long the machine was away, so the timer store can ask the user
+ * to keep or remove that span on return (pause-then-ask). Idle-WITHOUT-sleep
+ * (no keyboard/mouse, machine awake) is handled in the renderer via
+ * getSystemIdleTime (already exposed) — this covers the harder case the
+ * renderer is blind to: the process itself is suspended. ------------------- */
+let __suspendAt = 0;
+let __lockAt = 0;
+const AWAY_MIN_SLEEP_SEC = 60;   // ignore <1min blips (quick lid bumps)
+const AWAY_MIN_LOCK_SEC = 900;   // a 15-min lock counts as "away"
+function broadcastAway(seconds, source) {
+  const s = Math.round(seconds);
+  if (!(s > 0)) return;
+  for (const w of BrowserWindow.getAllWindows()) {
+    try { w.webContents.send("power:away", { seconds: s, source }); } catch (e) {}
+  }
+}
+function setupAwayWatch() {
+  try {
+    powerMonitor.on("suspend", () => { __suspendAt = Date.now(); });
+    powerMonitor.on("resume", () => {
+      if (__suspendAt) { const s = (Date.now() - __suspendAt) / 1000; __suspendAt = 0; if (s >= AWAY_MIN_SLEEP_SEC) broadcastAway(s, "sleep"); }
+    });
+    powerMonitor.on("lock-screen", () => { __lockAt = Date.now(); });
+    powerMonitor.on("unlock-screen", () => {
+      if (__lockAt) { const s = (Date.now() - __lockAt) / 1000; __lockAt = 0; if (s >= AWAY_MIN_LOCK_SEC) broadcastAway(s, "lock"); }
+    });
+  } catch (e) {}
 }
 
 /* ---------- lifecycle ---------- */
@@ -494,6 +527,7 @@ ipcMain.handle("puffstaff:appwindow", async () => {
     if (app.dock && fs.existsSync(iconPath)) { try { app.dock.setIcon(nativeImage.createFromPath(iconPath)); } catch (e) {} }
     createWindow(); createTray(); buildMenu();
     applyGlobalHotkey();
+    setupAwayWatch();
     // Windows first-launch-from-protocol: the deep link arrives in argv.
     if (IS_WIN) { try { const u = process.argv.find((a) => a.startsWith(SCHEME + "://")); if (u) handleDeepLink(u); } catch (e) {} }
     setTimeout(() => checkForUpdates(true), 4000);           // silent check on launch
