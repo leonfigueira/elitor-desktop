@@ -8,7 +8,7 @@ const SUPABASE_ANON =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ndWJqc3VxZHNiZGV3aHdsa2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDgxNjIsImV4cCI6MjA5NDQ4NDE2Mn0.YPh-jc0VCf_QYk9v6EbhLNL7wssne-MWR75y7VTkEik";
 const APP_URL = "https://www.elitor.ai/communications";
 const HOME_ORIGIN = "https://www.elitor.ai";
-const SCHEME = "pufflabs";
+const SCHEME = "elitor";
 const UPDATE_URL = "https://www.elitor.ai/desktop/latest.json"; // {version,url}
 const DOWNLOAD_PAGE = "https://www.elitor.ai/download";
 
@@ -50,7 +50,7 @@ async function handleDeepLink(url) {
     const at = data.session.access_token, rt = data.session.refresh_token;
     if (!win) createWindow();
     await win.loadURL(HOME_ORIGIN + "/login");
-    console.log("[auth] setSession ->", await win.webContents.executeJavaScript("window.pufflabsAuth.setSession(" + JSON.stringify(at) + "," + JSON.stringify(rt) + ")"));
+    console.log("[auth] setSession ->", await win.webContents.executeJavaScript("window.elitorAuth.setSession(" + JSON.stringify(at) + "," + JSON.stringify(rt) + ")"));
     await win.loadURL(APP_URL); showWindow();
   } catch (e) { console.error("[auth] deeplink", e); }
 }
@@ -113,7 +113,7 @@ function createWindow() {
     if (timerPip) {
       return { action: "allow", overrideBrowserWindowOptions: {
         backgroundColor: "#0c0a1a", ...(IS_MAC ? { titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 18 } } : { frame: false }),
-        webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, webSecurity: true, sandbox: false, additionalArguments: ["--pufflabs-frameless-popout"] },
+        webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, webSecurity: true, sandbox: false, additionalArguments: ["--elitor-frameless-popout"] },
       } };
     }
     return { action: "allow" };
@@ -434,7 +434,7 @@ async function clearCacheAndRestart() {
 function applyGlobalHotkey() {
   try { globalShortcut.unregister("CommandOrControl+Shift+P"); } catch (e) {}
   if (settings.globalHotkey === false) return;
-  try { globalShortcut.register("CommandOrControl+Shift+P", () => { showWindow(); try { if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.dispatchEvent(new Event('pufflabs:open-command-palette'))").catch(() => {}); } catch (e) {} }); } catch (e) {}
+  try { globalShortcut.register("CommandOrControl+Shift+P", () => { showWindow(); try { if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.dispatchEvent(new Event('elitor:open-command-palette'))").catch(() => {}); } catch (e) {} }); } catch (e) {}
 }
 
 /* ---------- away watch (sleep / lock) ────────────────────────────────────
@@ -474,7 +474,7 @@ function setupAwayWatch() {
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 else {
   // Protocol registration. macOS: a plain call. Windows in dev: pass the exe +
-  // script path so the launched copy carries the pufflabs:// URL in argv.
+  // script path so the launched copy carries the elitor:// URL in argv.
   if (IS_WIN && process.defaultApp && process.argv.length >= 2) {
     try { app.setAsDefaultProtocolClient(SCHEME, process.execPath, [path.resolve(process.argv[1])]); } catch (e) {}
   } else {
@@ -483,13 +483,13 @@ else {
   app.on("open-url", (e, url) => { e.preventDefault(); handleDeepLink(url); });
   app.on("second-instance", (_e, argv) => { const u = argv.find((a) => a.startsWith(SCHEME + "://")); if (u) handleDeepLink(u); else showWindow(); });
 
-// ── Puffstaff activity capture bridge (idle + screenshots) ──────────────
+// ── Staff activity capture bridge (idle + screenshots) ──────────────
 // The renderer holds the auth session + timer state, so it drives the 10-min
-// capture loop and posts slots to /auth/puffstaff/ingest. Main just exposes
+// capture loop and posts slots to /auth/staff/ingest. Main just exposes
 // the OS-level capabilities it cannot reach from the renderer.
-ipcMain.handle("puffstaff:idle", () => { try { return powerMonitor.getSystemIdleTime(); } catch (e) { return 0; } });
-ipcMain.handle("puffstaff:screen-perm", () => { try { return process.platform === "darwin" ? systemPreferences.getMediaAccessStatus("screen") : "granted"; } catch (e) { return "unknown"; } });
-ipcMain.handle("puffstaff:screens", async () => {
+ipcMain.handle("staff:idle", () => { try { return powerMonitor.getSystemIdleTime(); } catch (e) { return 0; } });
+ipcMain.handle("staff:screen-perm", () => { try { return process.platform === "darwin" ? systemPreferences.getMediaAccessStatus("screen") : "granted"; } catch (e) { return "unknown"; } });
+ipcMain.handle("staff:screens", async () => {
   try {
     // not-determined → calling getSources triggers the macOS Screen Recording prompt; only bail when the user has explicitly denied.
     const __st = process.platform === "darwin" ? systemPreferences.getMediaAccessStatus("screen") : "granted";
@@ -503,12 +503,12 @@ ipcMain.handle("puffstaff:screens", async () => {
 });
 
 
-// Puffstaff app/URL tracking — active window (app name + title) + browser URL
+// Staff app/URL tracking — active window (app name + title) + browser URL
 // via get-windows (ESM-only, dynamic import; native module → electron-rebuild).
 // Only polled by the renderer when the App/URL toggle is on, so the macOS
 // Accessibility/Screen-Recording prompts only appear if the feature is enabled.
 let __getWindowsMod = null;
-ipcMain.handle("puffstaff:appwindow", async () => {
+ipcMain.handle("staff:appwindow", async () => {
   try {
     if (!__getWindowsMod) __getWindowsMod = await import("get-windows");
     const w = await __getWindowsMod.activeWindow();

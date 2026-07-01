@@ -8,7 +8,7 @@ const SUPABASE_ANON =
 // Exposed to the main process via executeJavaScript. Uses the SAME
 // @supabase/ssr browser client the website uses, so setSession writes the
 // sb-<ref>-auth-token cookie in the exact format the server expects.
-contextBridge.exposeInMainWorld("pufflabsAuth", {
+contextBridge.exposeInMainWorld("elitorAuth", {
   // Ask the shell to open Google OAuth in the user's real browser (Google
   // blocks OAuth inside an app webview). The /login page calls this so sign-in
   // is an explicit, reliable, user-initiated action rather than an auto-timer.
@@ -24,22 +24,22 @@ contextBridge.exposeInMainWorld("pufflabsAuth", {
   },
 });
 
-contextBridge.exposeInMainWorld("__PUFFLABS_DESKTOP__", true);
+contextBridge.exposeInMainWorld("__ELITOR_DESKTOP__", true);
 
-contextBridge.exposeInMainWorld("__PUFFLABS_FRAMELESS__", true);
+contextBridge.exposeInMainWorld("__ELITOR_FRAMELESS__", true);
 
 // True ONLY in the frameless time-tracker pop-out window (main.js passes
-// --pufflabs-frameless-popout via additionalArguments). The web reserves
+// --elitor-frameless-popout via additionalArguments). The web reserves
 // traffic-light clearance + a drag strip for just that window.
 contextBridge.exposeInMainWorld(
-  "__PUFFLABS_POPOUT_FRAMELESS__",
-  process.argv.includes("--pufflabs-frameless-popout")
+  "__ELITOR_POPOUT_FRAMELESS__",
+  process.argv.includes("--elitor-frameless-popout")
 );
 
 // Menu-bar (tray) timer bridge. The renderer holds the auth session +
 // the timer store, so it pushes elapsed/project state to the main
 // process (which paints the tray), and listens for tray menu clicks.
-contextBridge.exposeInMainWorld("pufflabsTray", {
+contextBridge.exposeInMainWorld("elitorTray", {
   update: (state) => { try { ipcRenderer.send("tray:timer", state); } catch (e) {} },
   onCommand: (cb) => {
     const handler = (_e, payload) => { try { cb(payload); } catch (e) {} };
@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld("pufflabsTray", {
 // zoom / preferences). Zoom uses webFrame directly (renderer
 // process); the Preferences button asks main to open the prefs
 // window over IPC.
-contextBridge.exposeInMainWorld("pufflabsApp", {
+contextBridge.exposeInMainWorld("elitorApp", {
   zoomIn: () => { try { webFrame.setZoomLevel(Math.min(webFrame.getZoomLevel() + 0.5, 3)); } catch (e) {} },
   zoomOut: () => { try { webFrame.setZoomLevel(Math.max(webFrame.getZoomLevel() - 0.5, -3)); } catch (e) {} },
   zoomReset: () => { try { webFrame.setZoomLevel(0); } catch (e) {} },
@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld("pufflabsApp", {
 
 // Native notification bridge: the renderer asks main to show a macOS
 // notification (main owns the on/off setting + reliable click focus).
-contextBridge.exposeInMainWorld("pufflabsNotify", {
+contextBridge.exposeInMainWorld("elitorNotify", {
   show: (p) => { try { ipcRenderer.send("notify:show", p); } catch (e) {} },
   onClick: (cb) => {
     const handler = (_e, url) => { try { cb(url); } catch (e) {} };
@@ -72,13 +72,13 @@ contextBridge.exposeInMainWorld("pufflabsNotify", {
 
 // Platform string so the web app can branch (e.g. draw mac-style window
 // control dots only on Windows, where the OS draws none in a frameless window).
-contextBridge.exposeInMainWorld("pufflabsPlatform", process.platform);
+contextBridge.exposeInMainWorld("elitorPlatform", process.platform);
 
 // Window controls for the frameless window. On Windows the web app draws the
 // mac-style traffic-light dots in the top-left and calls these; on macOS the OS
 // draws the real traffic lights so these go unused. Works for the main window
 // AND the timer pop-out (main resolves the window from the IPC sender).
-contextBridge.exposeInMainWorld("pufflabsWindow", {
+contextBridge.exposeInMainWorld("elitorWindow", {
   minimize: () => { try { ipcRenderer.send("win:minimize"); } catch (e) {} },
   maximize: () => { try { ipcRenderer.send("win:maximize"); } catch (e) {} },
   close: () => { try { ipcRenderer.send("win:close"); } catch (e) {} },
@@ -90,11 +90,24 @@ contextBridge.exposeInMainWorld("pufflabsWindow", {
   },
 });
 
-// Puffstaff capture bridge: lets the renderer read system idle time + grab
+// Power/away bridge: main watches OS sleep + screen-lock (which suspend the
+// renderer's wall-clock) and reports how long the machine was away while a
+// timer was running, so the timer store can ask the user to keep or remove
+// that span on return. Idle-while-awake is handled in the renderer via
+// elitorCapture.idleSeconds().
+contextBridge.exposeInMainWorld("elitorPower", {
+  onAway: (cb) => {
+    const handler = (_e, p) => { try { cb(p); } catch (e) {} };
+    ipcRenderer.on("power:away", handler);
+    return () => { try { ipcRenderer.removeListener("power:away", handler); } catch (e) {} };
+  },
+});
+
+// Staff capture bridge: lets the renderer read system idle time + grab
 // per-display screenshots (main owns the OS APIs + macOS permissions).
-contextBridge.exposeInMainWorld("pufflabsCapture", {
-  idleSeconds: () => ipcRenderer.invoke("puffstaff:idle"),
-  screenPermission: () => ipcRenderer.invoke("puffstaff:screen-perm"),
-  captureScreens: () => ipcRenderer.invoke("puffstaff:screens"),
-  activeWindow: () => ipcRenderer.invoke("puffstaff:appwindow"),
+contextBridge.exposeInMainWorld("elitorCapture", {
+  idleSeconds: () => ipcRenderer.invoke("staff:idle"),
+  screenPermission: () => ipcRenderer.invoke("staff:screen-perm"),
+  captureScreens: () => ipcRenderer.invoke("staff:screens"),
+  activeWindow: () => ipcRenderer.invoke("staff:appwindow"),
 });

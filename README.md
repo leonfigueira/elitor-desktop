@@ -1,9 +1,9 @@
 # Elitor Desktop
 
-macOS desktop app for **Elitor Communications** (pufflabs.work) — an Electron shell
+macOS desktop app for **Elitor Communications** (elitor.work) — an Electron shell
 around the live web app with native menu-bar / background mode, notifications,
 dock unread badge + bounce, a Preferences window, and in-app update checks.
-Sign-in is Google OAuth handled in the system browser (`pufflabs://` deep link).
+Sign-in is Google OAuth handled in the system browser (`elitor://` deep link).
 
 ## Install
 Grab the latest `Elitor.dmg` from **Releases**, drag Elitor to Applications.
